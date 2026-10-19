@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Architecture agentique LCB-FT – Traitement des alertes</title>
+<style>
+:root{--ink:#1E1240;--ink2:#2E1F63;--p:#4B1FC2;--ps:#EEE8FC;--h:#8A2BB8;--hs:#F5E9FB;--o:#4A3F7A;--os:#ECEAF4;--m:#6E6891;--l:#E5E0F2;--bg:#F7F5FC;--r:#9B1B63;--rs:#F9E7F1;--x:#2B6CB0;--xs:#E7EEF8}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:12.5px;line-height:1.4}
+header{background:linear-gradient(90deg,var(--ink),var(--ink2));color:#fff;padding:16px 28px}
+header h1{font-size:19px;font-weight:600}
+header p{font-size:12px;opacity:.75;margin-top:2px}
+.wrap{padding:18px 28px;max-width:1500px;margin:auto}
+.tabs{display:flex;gap:6px;margin-bottom:16px}
+.tabs button{border:1px solid var(--l);background:#fff;border-radius:8px;padding:7px 14px;font-size:12.5px;cursor:pointer;font-family:inherit;color:var(--ink)}
+.tabs button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.hidden{display:none!important}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--m);font-weight:600;margin:0 0 8px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--m);margin-bottom:14px}
+.legend span i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+/* layers */
+.layer{display:grid;grid-template-columns:150px 1fr;gap:12px;margin-bottom:10px;align-items:stretch}
+.lname{border-radius:10px;padding:10px 12px;font-weight:600;font-size:12px;display:flex;flex-direction:column;justify-content:center}
+.lname small{font-weight:400;font-size:10.5px;opacity:.8;margin-top:2px}
+.lrow{display:flex;gap:10px;flex-wrap:wrap}
+.box{background:#fff;border:1px solid var(--l);border-radius:10px;padding:9px 11px;flex:1;min-width:150px}
+.box b{display:block;font-size:12px;margin-bottom:2px}
+.box small{color:var(--m);font-size:11px}
+.L-h .lname{background:var(--hs);color:var(--h)} .L-h .box{border-top:3px solid var(--h)}
+.L-a .lname{background:var(--p);color:#fff} 
+.L-s .lname{background:var(--os);color:var(--o)} .L-s .box{border-top:3px solid var(--o)}
+.L-t .lname{background:#E6E0F7;color:var(--ink2)} .L-t .box{border-top:3px solid #7B4FD6}
+.L-b .lname{background:var(--ps);color:var(--p)} .L-b .box{border-top:3px solid #A58BE6}
+.L-x .lname{background:var(--xs);color:var(--x)} .L-x .box{border-top:3px solid var(--x)}
+.agent{background:#fff;border:1.5px solid var(--p);border-radius:12px;padding:10px 12px;flex:1;min-width:190px;cursor:pointer;transition:.15s;position:relative}
+.agent:hover,.agent.sel{background:var(--ps);box-shadow:0 2px 10px rgba(75,31,194,.15)}
+.agent .n{font-size:10px;font-weight:700;color:var(--p);letter-spacing:.05em}
+.agent b{display:block;font-size:13px;margin:1px 0 4px}
+.agent .lvl{position:absolute;top:9px;right:10px;font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px}
+.lvl.opt{background:var(--p);color:#fff}.lvl.aug{background:var(--hs);color:var(--h)}
+.sa{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.sa span{font-size:10.5px;background:var(--ps);color:var(--p);border-radius:6px;padding:1px 6px}
+.agent.off{border-style:dashed}
+.flowline{text-align:center;color:var(--m);font-size:10.5px;margin:-4px 0 6px 162px;letter-spacing:.04em}
+/* detail */
+.detail{background:#fff;border:1px solid var(--l);border-radius:12px;padding:16px 18px;margin-top:14px}
+.dhead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:20px}
+.dhead h3{font-size:16px}
+.dhead p{color:var(--m);font-size:12px;max-width:760px;margin-top:2px}
+.g3{display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:14px}
+.col h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--m);margin-bottom:6px;border-bottom:1px solid var(--l);padding-bottom:4px}
+.item{display:flex;gap:8px;padding:5px 0;border-bottom:1px dashed var(--l);font-size:12px}
+.item:last-child{border:none}
+.ic{flex-shrink:0;font-size:9.5px;font-weight:700;border-radius:5px;padding:1px 5px;height:fit-content;min-width:44px;text-align:center}
+.t-llm{background:var(--p);color:#fff}.t-reg{background:var(--o);color:#fff}.t-ml{background:#7B4FD6;color:#fff}.t-calc{background:#A58BE6;color:#fff}.t-doc{background:#C4B2F0;color:var(--ink)}.t-graph{background:var(--ink2);color:#fff}.t-gard{background:var(--r);color:#fff}
+.dir{flex-shrink:0;font-size:9.5px;font-weight:700;border-radius:5px;padding:1px 5px;min-width:30px;text-align:center;height:fit-content}
+.d-R{background:var(--ps);color:var(--p)}.d-W{background:var(--hs);color:var(--h)}.d-E{background:var(--os);color:var(--o)}.d-X{background:var(--xs);color:var(--x)}
+.hitl{margin-top:12px;background:var(--hs);border-left:3px solid var(--h);padding:8px 12px;border-radius:0 8px 8px 0;font-size:12px}
+.hitl b{color:var(--h)}
+/* matrix */
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;font-size:11.5px}
+th{background:var(--ink);color:#fff;font-weight:600;padding:8px 6px;font-size:11px;text-align:center}
+th:first-child,td:first-child{text-align:left;padding-left:12px}
+td{border-bottom:1px solid var(--l);padding:7px 6px;text-align:center}
+tr.grp td{background:var(--os);font-weight:600;color:var(--o);text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;padding:5px 12px}
+.c{display:inline-block;min-width:22px;font-size:10px;font-weight:700;border-radius:5px;padding:2px 4px}
+.c.R{background:var(--ps);color:var(--p)}.c.W{background:var(--hs);color:var(--h);border:1px solid var(--h)}.c.RW{background:var(--p);color:#fff}.c.E{background:var(--os);color:var(--o)}
+.note{font-size:11px;color:var(--m);margin-top:8px}
+/* tools catalog */
+.cat{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.ccard{background:#fff;border:1px solid var(--l);border-radius:12px;padding:12px 14px}
+.ccard .ic{display:inline-block;margin-bottom:6px}
+.ccard b{display:block;font-size:13px;margin-bottom:3px}
+.ccard p{font-size:11.5px;color:#4F4775;margin-bottom:6px}
+.ccard .ex{font-size:11px;color:var(--m)}
+.ccard .use{font-size:10.5px;margin-top:6px;color:var(--p);font-weight:600}
+/* principles */
+.pr{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+.pr div{background:#fff;border:1px solid var(--l);border-left:3px solid var(--p);border-radius:0 10px 10px 0;padding:10px 12px;font-size:12px}
+.pr div b{display:block;margin-bottom:2px}
+/* interaction flows */
+.flows{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.fl{background:#fff;border:1px solid var(--l);border-radius:12px;padding:12px 14px}
+.fl h5{font-size:12.5px;margin-bottom:6px}
+.fl ol{padding-left:18px;font-size:11.5px;color:#4F4775}
+.fl li{margin-bottom:3px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Architecture agentique – Traitement des alertes LCB-FT</h1>
+  <p>Cinq agents, un socle commun gouverné, l'humain aux moments clés · Wavestone · Document de travail</p>
+</header>
+<div class="wrap">
+<div class="tabs">
+  <button class="on" onclick="tab('v1',this)">Vue d'ensemble</button>
+  <button onclick="tab('v2',this)">Matrice des interactions</button>
+  <button onclick="tab('v3',this)">Types d'outils</button>
+  <button onclick="tab('v4',this)">Flux d'interaction clés</button>
+</div>
+
+<!-- ================= VUE 1 ================= -->
+<div id="v1">
+<div class="legend">
+  <span><i style="background:var(--h)"></i>Humain</span><span><i style="background:var(--p)"></i>Agent IA</span>
+  <span><i style="background:var(--o)"></i>Socle de gouvernance</span><span><i style="background:#7B4FD6"></i>Couche d'outils</span>
+  <span><i style="background:#A58BE6"></i>Systèmes de la banque</span><span><i style="background:var(--x)"></i>Sources externes</span>
+  <span style="margin-left:auto">Cliquez sur un agent pour le détail</span>
+</div>
+
+<div class="layer L-h"><div class="lname">Humains<small>décident, valident</small></div>
+<div class="lrow">
+<div class="box"><b>Manager LCB-FT</b><small>Supervise la file, réaffecte</small></div>
+<div class="box"><b>Analyste N1</b><small>Choisit le canal de contact, décide classement ou examen renforcé</small></div>
+<div class="box"><b>Expert N2</b><small>Mène l'investigation, qualifie le soupçon</small></div>
+<div class="box"><b>Déclarant Tracfin</b><small>Valide et transmet la DS</small></div>
+<div class="box"><b>Comité de pilotage</b><small>Arbitre les réglages de détection</small></div>
+<div class="box"><b>Conseiller</b><small>Relais de la demande de pièces, sans accès à l'analyse</small></div>
+</div></div>
+<div class="flowline">▲ propositions motivées · ▼ décisions tracées</div>
+
+<div class="layer L-a"><div class="lname">Agents<small>préparent, proposent</small></div>
+<div class="lrow" id="agents"></div></div>
+<div class="flowline">▲ résultats · ▼ appels d'outils, exclusivement via l'orchestrateur et la couche d'outils</div>
+
+<div class="layer L-s"><div class="lname">Socle commun<small>gouvernance</small></div>
+<div class="lrow">
+<div class="box"><b>Orchestrateur durable (Saga)</b><small>État des dossiers, attentes, relances, escalades. Règles fixes, sans LLM</small></div>
+<div class="box"><b>Journal d'audit immuable</b><small>Données lues, outils appelés, version modèle/prompt, décisions</small></div>
+<div class="box"><b>Garde-fous</b><small>Anti-tipping-off, données personnelles, interdiction d'écrire sans validation</small></div>
+<div class="box"><b>Passerelle LLM</b><small>Choix du modèle par tâche, hébergement maîtrisé, suivi des coûts</small></div>
+<div class="box"><b>Mémoire des dossiers</b><small>Décisions passées, motifs, précédents</small></div>
+<div class="box"><b>Supervision des agents</b><small>Taux d'acceptation, dérive, campagnes de tests</small></div>
+</div></div>
+
+<div class="layer L-t"><div class="lname">Couche d'outils<small>MCP / API</small></div>
+<div class="lrow">
+<div class="box"><b>Connecteurs lecture</b><small>Accès aux données, droits par agent</small></div>
+<div class="box"><b>Connecteurs écriture</b><small>Activés uniquement après validation humaine</small></div>
+<div class="box"><b>Bus d'événements</b><small>Réception des alertes, reprise des dossiers en attente</small></div>
+<div class="box"><b>Services d'analyse</b><small>Scoring, calculs, OCR, rapprochement de noms, graphe</small></div>
+</div></div>
+
+<div class="layer L-b"><div class="lname">Systèmes banque<small>internes</small></div>
+<div class="lrow">
+<div class="box"><b>Outil de détection AML</b><small>Actimize, SAS AML, Siron…</small></div>
+<div class="box"><b>Case management</b><small>Dossiers, décisions, archivage</small></div>
+<div class="box"><b>Référentiel KYC / CRM</b><small>Profil, risque, notes conseiller</small></div>
+<div class="box"><b>Cœur bancaire et flux</b><small>Comptes, SEPA, SWIFT, cartes</small></div>
+<div class="box"><b>GED</b><small>Pièces et justificatifs</small></div>
+<div class="box"><b>Outil de graphe</b><small>Quantexa, Neo4j…</small></div>
+<div class="box"><b>Fraude et réclamations</b><small>Signalements, empreintes d'appareil</small></div>
+</div></div>
+
+<div class="layer L-x"><div class="lname">Externe<small>régulateur, données</small></div>
+<div class="lrow">
+<div class="box"><b>Listes sanctions et PEP</b><small>World-Check, Dow Jones…</small></div>
+<div class="box"><b>Registres</b><small>RNE, RBE, registres étrangers</small></div>
+<div class="box"><b>Presse et sources ouvertes</b><small>Presse négative, web</small></div>
+<div class="box"><b>Référentiels métiers</b><small>Annuaire des notaires…</small></div>
+<div class="box"><b>Analyse blockchain</b><small>Suivi des portefeuilles crypto</small></div>
+<div class="box"><b>ERMES (Tracfin)</b><small>Transmission des DS</small></div>
+</div></div>
+
+<div class="detail" id="detail"></div>
+
+<div class="pr">
+<div><b>L'orchestrateur décide de l'enchaînement, pas les agents</b>Les agents produisent des propositions structurées ; seul l'orchestrateur exécute, selon des règles fixes et auditables.</div>
+<div><b>Un agent peut monter la vigilance, jamais la baisser seul</b>Toute baisse de priorité, tout classement et toute écriture passent par une décision humaine.</div>
+<div><b>Lecture par défaut, écriture sous validation</b>Chaque agent a des droits limités à ce dont il a besoin ; l'écriture est désactivée tant qu'un humain n'a pas validé.</div>
+</div>
+</div>
+
+<!-- ================= VUE 2 ================= -->
+<div id="v2" class="hidden">
+<div class="legend"><span><span class="c R">L</span> Lecture</span><span><span class="c W">L / E*</span> Lecture, écriture après validation</span><span><span class="c W">E*</span> Écriture après validation humaine</span><span><span class="c E">Év</span> Événement</span></div>
+<table id="matrix"></table>
+<p class="note">Aucune case « E* » n'est exécutée par l'agent lui-même : l'agent produit la proposition, l'humain valide, l'orchestrateur écrit. Le journal d'audit est alimenté uniquement par l'orchestrateur. « Év » sur les garde-fous : chaque message ou document sortant leur est soumis avant envoi.</p>
+</div>
+
+<!-- ================= VUE 3 ================= -->
+<div id="v3" class="hidden">
+<h2>Sept types d'outils qui composent les agents</h2>
+<div class="cat" id="cat"></div>
+<p class="note" style="margin-top:12px">Le LLM n'est qu'un des sept types d'outils : il interprète, synthétise et rédige. Les décisions d'orientation, les calculs et les contrôles de conformité reposent sur des outils déterministes, plus faciles à auditer.</p>
+</div>
+
+<!-- ================= VUE 4 ================= -->
+<div id="v4" class="hidden">
+<h2>Comment les briques interagissent</h2>
+<div class="flows">
+<div class="fl"><h5>1 · Arrivée et orientation d'une alerte</h5><ol>
+<li>L'outil de détection publie l'alerte sur le bus d'événements</li>
+<li>L'orchestrateur crée ou complète le dossier client</li>
+<li>L'agent Triage lit KYC, historique et liens (adresse, appareil)</li>
+<li>Le moteur de règles calcule le score et applique les règles fixes</li>
+<li>Le modèle ML peut relever la priorité</li>
+<li>L'orchestrateur affecte le dossier en N1 ou N2 et trace la décision</li></ol></div>
+<div class="fl"><h5>2 · Instruction N1 en parallèle</h5><ol>
+<li>L'orchestrateur lance KYC 360, Transactions et Screening en même temps</li>
+<li>Chaque sous-agent passe par la couche d'outils, en lecture seule</li>
+<li>Le sous-agent Preuves cherche d'abord en GED, puis liste les pièces manquantes</li>
+<li>Le contrôle qualité vérifie le rattachement aux preuves et calcule la confiance</li>
+<li>Sous le seuil : retour à l'agent Analyse. Au-dessus : présentation à l'analyste</li></ol></div>
+<div class="fl"><h5>3 · Demande de pièces au client</h5><ol>
+<li>L'agent propose un canal et rédige à partir d'un gabarit validé</li>
+<li>Le garde-fou anti-divulgation contrôle le texte</li>
+<li>L'analyste valide ou change le canal, ou décide de ne pas contacter</li>
+<li>L'orchestrateur crée la tâche CRM ou dépose la demande sur l'espace client</li>
+<li>Le dossier passe en attente, relance automatique, reprise à réception</li>
+<li>OCR puis contrôle de vraisemblance par rapport aux bases internes</li></ol></div>
+<div class="fl"><h5>4 · Investigation N2</h5><ol>
+<li>L'agent prépare le graphe et la corrélation avec la mémoire des dossiers</li>
+<li>L'expert interroge l'agent en langage naturel ; chaque réponse cite ses sources</li>
+<li>L'agent propose des pistes, l'expert choisit</li>
+<li>Les recherches externes sont lancées sur demande de l'expert</li>
+<li>L'expert qualifie : DS, vigilance renforcée ou classement</li></ol></div>
+<div class="fl"><h5>5 · Restitution et transmission</h5><ol>
+<li>L'agent Synthèse lit le journal d'audit, il ne reconstruit pas l'histoire</li>
+<li>Rédaction à partir d'un gabarit, chaque phrase est sourcée</li>
+<li>Contrôle de complétude des champs obligatoires</li>
+<li>Validation par le déclarant ou l'analyste</li>
+<li>L'orchestrateur écrit : case management, KYC, ERMES</li></ol></div>
+<div class="fl"><h5>6 · Boucle d'apprentissage</h5><ol>
+<li>L'agent Apprentissage lit, hors ligne, décisions et motifs</li>
+<li>Il compare les propositions des agents aux décisions humaines</li>
+<li>Il repère les scénarios bruyants et les classements contradictoires</li>
+<li>Il soumet des réglages et des jeux de tests au comité</li>
+<li>Le comité arbitre ; les changements sont versionnés</li></ol></div>
+</div>
+</div>
+</div>
+
+<script>
+const T={llm:['LLM','t-llm'],reg:['Règles','t-reg'],ml:['ML','t-ml'],calc:['Calcul','t-calc'],doc:['OCR/IDP','t-doc'],graph:['Graphe','t-graph'],gard:['Garde-fou','t-gard']};
+const D={R:['L','d-R'],W:['E*','d-W'],E:['Év','d-E'],X:['Ext','d-X']};
+const AG=[
+{n:'AGENT 1',t:'Triage & planification',lvl:['opt','Optimiser'],sub:['Regroupement','Scoring','Orientation','Planification'],
+ mis:'Regrouper les alertes par client et par réseau, prioriser, orienter en N1 ou N2, prévoir et suivre le délai de traitement.',
+ tools:[['reg','Moteur de règles : score déterministe et règles d\'orientation non contournables (sanctions, PEP, seuil N2)'],['ml','Modèle de priorisation : peut seulement relever la priorité'],['calc','Résolution d\'entités : liens par adresse, appareil, dirigeant'],['ml','Modèle de prévision du délai de traitement'],['llm','LLM : explication de l\'orientation en langage clair']],
+ ints:[['E','Outil de détection AML','Réception des alertes'],['R','Référentiel KYC','Niveau de risque, PEP'],['R','Case management','Historique d\'alertes'],['R','Fraude / sécurité','Empreintes d\'appareil'],['W','Planification des équipes','Affectation, contrôlable par le manager']],
+ hitl:'Le manager peut réaffecter un dossier ; toute correction est tracée et alimente l\'apprentissage.'},
+{n:'AGENT 2',t:'Analyse N1',lvl:['opt','Optimiser'],sub:['KYC 360','Transactions','Screening','Preuves','Contrôle qualité'],
+ mis:'Instruire le dossier en parallèle, réunir les preuves nécessaires et proposer une décision motivée.',
+ tools:[['llm','LLM : synthèse du profil, interprétation des flux, rédaction de la demande'],['calc','Calculs statistiques : écart au comportement habituel, fractionnement, délais de sortie'],['calc','Rapprochement de noms (sanctions, PEP, presse)'],['doc','OCR / extraction de documents (factures, actes, contrats)'],['calc','Contrôle de vraisemblance par rapport aux bases internes de référence'],['gard','Garde-fou anti-divulgation sur les messages sortants'],['llm','Contrôle qualité : rattachement aux preuves, indice de confiance']],
+ ints:[['R','Référentiel KYC / CRM','Profil, notes du conseiller'],['R','Cœur bancaire, SEPA, SWIFT','Transactions'],['R','GED','Pièces existantes'],['X','Listes, registres, presse','Screening'],['X','Référentiels métiers','Ex. annuaire des notaires'],['W','CRM / espace client','Demande de pièces après choix de l\'analyste']],
+ hitl:'L\'analyste choisit le canal de contact (ou décide de ne pas contacter), puis décide du classement ou de l\'examen renforcé. Tout écart avec la proposition doit être motivé.'},
+{n:'AGENT 3',t:'Analyse renforcée',lvl:['aug','Augmenter'],sub:['Graphe','Corrélation','Revue KYC renforcée','Échange conversationnel'],
+ mis:'Donner à l\'expert N2 de la puissance d\'analyse et une interface d\'échange en langage naturel. L\'expert mène, l\'agent suggère.',
+ tools:[['graph','Analyse de graphe relationnel : flux, dirigeants, coordonnées partagées'],['calc','Recherche de dossiers similaires dans la mémoire des dossiers'],['llm','LLM conversationnel : réponses sourcées sur le dossier'],['llm','Génération de pistes d\'investigation'],['calc','Recherche en sources ouvertes à la demande']],
+ ints:[['R','Outil de graphe','Réseau de relations'],['R','Case management','Dossiers et décisions passés'],['R','Fraude et réclamations','Victimes, signalements'],['X','Registres étrangers, blockchain','Sur demande de l\'expert'],['W','Case management','Réouverture de dossiers liés, sur décision']],
+ hitl:'L\'expert choisit les pistes et qualifie le soupçon. L\'agent ne formule aucune recommandation de décision.'},
+{n:'AGENT 4',t:'Synthèse & restitution',lvl:['opt','Optimiser'],sub:['Rédaction','Sourçage','Complétude'],
+ mis:'Mettre en forme la décision et son raisonnement à partir du journal d\'audit : note de classement ou déclaration de soupçon.',
+ tools:[['llm','LLM de rédaction à partir de gabarits (note, DS)'],['reg','Contrôle de complétude des champs obligatoires'],['calc','Vérification que chaque phrase renvoie à une preuve']],
+ ints:[['R','Journal d\'audit','Source unique de la rédaction'],['W','Case management','Archivage'],['W','Référentiel KYC','Mise à jour du risque, origine du patrimoine'],['W','ERMES (Tracfin)','Transmission de la DS'],['W','Cellule fraude','Note de transmission si victimes']],
+ hitl:'Le déclarant ou l\'analyste valide le texte. Aucune écriture ni transmission n\'a lieu avant.'},
+{n:'AGENT 5',t:'Apprentissage',lvl:['aug','Augmenter'],sub:['Hors ligne','Réglage des scénarios','Tests'],off:true,
+ mis:'Transformer les décisions humaines en améliorations de la détection et des agents.',
+ tools:[['calc','Analyse des motifs de clôture par scénario de détection'],['ml','Détection des scénarios bruyants et des décisions contradictoires'],['calc','Comparaison des propositions des agents et des décisions humaines'],['llm','Rédaction des propositions de réglage']],
+ ints:[['R','Mémoire des dossiers','Décisions et motifs'],['R','Journal d\'audit','Écarts humain / agent'],['W','Outil de détection AML','Réglages après arbitrage du comité']],
+ hitl:'Le comité de pilotage arbitre chaque réglage ; les changements sont versionnés.'}
+];
+function renderAgents(){document.getElementById('agents').innerHTML=AG.map((a,i)=>`<div class="agent ${a.off?'off':''}" id="ag${i}" onclick="show(${i})"><span class="lvl ${a.lvl[0]}">${a.lvl[1]}</span><div class="n">${a.n}</div><b>${a.t}</b><div class="sa">${a.sub.map(s=>`<span>${s}</span>`).join('')}</div></div>`).join('')}
+function show(i){const a=AG[i];document.querySelectorAll('.agent').forEach(x=>x.classList.remove('sel'));document.getElementById('ag'+i).classList.add('sel');
+document.getElementById('detail').innerHTML=`<div class="dhead"><div><div class="n" style="font-size:10.5px;font-weight:700;color:var(--p)">${a.n} · Niveau ${a.lvl[1]}</div><h3>${a.t}</h3><p>${a.mis}</p></div></div>
+<div class="g3"><div class="col"><h4>Briques (types d'outils)</h4>${a.tools.map(t=>`<div class="item"><span class="ic ${T[t[0]][1]}">${T[t[0]][0]}</span><span>${t[1]}</span></div>`).join('')}</div>
+<div class="col"><h4>Interactions</h4>${a.ints.map(t=>`<div class="item"><span class="dir ${D[t[0]][1]}">${D[t[0]][0]}</span><span><b>${t[1]}</b> · ${t[2]}</span></div>`).join('')}</div>
+<div class="col"><h4>Sous-agents / fonctions</h4>${a.sub.map(s=>`<div class="item">${s}</div>`).join('')}<div class="hitl"><b>Humain dans la boucle · </b>${a.hitl}</div></div></div>
+<p class="note" style="margin-top:10px">L = lecture · E* = écriture après validation humaine · Év = événement · Ext = source externe (lecture)</p>`}
+const MX={cols:['Triage','Analyse N1','Analyse renforcée','Synthèse','Apprentissage'],rows:[
+['g','Systèmes de la banque'],
+['Outil de détection AML',['E','','','','W']],
+['Case management',['R','R','RW*','W','R']],
+['Référentiel KYC / CRM',['R','R','R','W','']],
+['Cœur bancaire et flux',['','R','R','','']],
+['GED',['','R','R','R','']],
+['Outil de graphe',['','','R','','']],
+['Fraude, réclamations, appareils',['R','R','R','W','']],
+['Planification des équipes',['W','','','','']],
+['CRM conseiller / espace client',['','W','','','']],
+['g','Socle'],
+['Journal d\'audit (écrit par l\'orchestrateur)',['','','R','R','R']],
+['Mémoire des dossiers',['R','R','R','','R']],
+['Garde-fous (filtre des sorties)',['','E','','E','']],
+['g','Externe'],
+['Listes sanctions et PEP',['R','R','','','']],
+['Registres (RNE, RBE, étrangers)',['','R','R','','']],
+['Presse et sources ouvertes',['','R','R','','']],
+['Analyse blockchain',['','','R','','']],
+['ERMES (Tracfin)',['','','','W','']]
+]};
+const CL={R:['R','L'],W:['W','E*'],RW:['RW','L/E'],'RW*':['W','L / E*'],E:['E','Év']};
+function renderMatrix(){let h='<tr><th>Système</th>'+MX.cols.map(c=>`<th>${c}</th>`).join('')+'</tr>';
+MX.rows.forEach(r=>{if(r[0]==='g'){h+=`<tr class="grp"><td colspan="6">${r[1]}</td></tr>`;return}
+h+=`<tr><td>${r[0]}</td>`+r[1].map(v=>`<td>${v?`<span class="c ${CL[v][0]}">${CL[v][1]}</span>`:''}</td>`).join('')+'</tr>'});
+document.getElementById('matrix').innerHTML=h}
+const CAT=[
+['llm','LLM','Interprète, synthétise, rédige et dialogue. Jamais seul pour décider.','Modèles via la passerelle LLM, hébergement maîtrisé','Agents 1 à 5'],
+['reg','Moteur de règles','Score déterministe, règles d\'orientation, complétude. Totalement explicable.','Moteur de décision, règles versionnées','Triage, Synthèse, Orchestrateur'],
+['ml','Modèles ML','Priorisation, prévision de délai, détection de dérive. Effet limité : relever, pas baisser.','Modèles supervisés internes','Triage, Apprentissage'],
+['calc','Calcul et rapprochement','Statistiques de flux, rapprochement de noms, résolution d\'entités, vraisemblance.','Services analytiques, rapprochement flou','Analyse N1, N2, Apprentissage'],
+['doc','OCR / IDP','Lecture et extraction des pièces : factures, actes, contrats, relevés.','Moteur IDP interne','Analyse N1 (Preuves)'],
+['graph','Graphe','Réseaux de relations : flux, dirigeants, adresses, appareils.','Quantexa, Neo4j…','Analyse renforcée'],
+['gard','Garde-fous','Anti-tipping-off, données personnelles, blocage des actions non autorisées. Hors LLM.','Filtres et politiques de la couche d\'outils','Analyse N1, Synthèse'],
+['reg','Orchestrateur & journal','Enchaînement, état, attente, relance ; trace immuable de chaque action.','Moteur de workflow durable, bus d\'événements','Socle, tous agents']];
+function renderCat(){document.getElementById('cat').innerHTML=CAT.map(c=>`<div class="ccard"><span class="ic ${T[c[0]][1]}">${T[c[0]][0]}</span><b>${c[1]}</b><p>${c[2]}</p><div class="ex">${c[3]}</div><div class="use">${c[4]}</div></div>`).join('')}
+function tab(id,b){['v1','v2','v3','v4'].forEach(v=>document.getElementById(v).classList.toggle('hidden',v!==id));document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on')}
+renderAgents();renderMatrix();renderCat();show(1);
+</script>
+</body>
+</html>
